@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-energy-app
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=smart-energy-secret-key-2024-minimum-256-bit-length-required
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/energy_db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - energy-network
+
+  db:
+    image: postgres:15-alpine
+    container_name: smart-energy-db
+    environment:
+      POSTGRES_DB: energy_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - energy-network
+
+volumes:
+  postgres_data:
+
+networks:
+  energy-network:
+    driver: bridge

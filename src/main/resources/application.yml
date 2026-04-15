@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: smart-energy-monitor
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/energy_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+server:
+  port: 8080
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:smart-energy-secret-key-2024-minimum-256-bit-length-required}
+    expiration: 86400000  # 24 hours
+
+logging:
+  level:
+    com.energy: INFO
+    org.springframework.security: WARN
