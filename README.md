@@ -1,3 +1,9 @@
+## 📊 Dashboard Preview
+
+![Dashboard](assets/Dashboard.png)
+
+
+
 # ⚡ Smart Energy Monitoring System
 
 A production-ready backend system built with **Java 17**, **Spring Boot 3**, **PostgreSQL**, and **Docker** that simulates real-time energy consumption monitoring — similar to systems used at energy grid operators like **Svenska kraftnät**.
