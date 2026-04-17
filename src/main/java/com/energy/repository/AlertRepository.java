@@ -1,8 +1,7 @@
 package com.energy.repository;
 
-import com.energy.model.Alert;
-import com.energy.model.User;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.energy.model.*;
+import org.springframework.data.jpa.repository.*;
 import java.util.List;
 
 public interface AlertRepository extends JpaRepository<Alert, Long> {

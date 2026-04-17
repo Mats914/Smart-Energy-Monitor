@@ -6,7 +6,6 @@ spring:
     url: jdbc:postgresql://localhost:5432/energy_db
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
@@ -15,7 +14,19 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: energy-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.energy.dto"
 
 server:
   port: 8080
@@ -23,9 +34,15 @@ server:
 app:
   jwt:
     secret: ${JWT_SECRET:smart-energy-secret-key-2024-minimum-256-bit-length-required}
-    expiration: 86400000  # 24 hours
+    expiration: 86400000
+  kafka:
+    topic:
+      energy-readings: energy-readings
+      alerts: energy-alerts
+  energy:
+    alert-threshold-kwh: 10.0
+    simulation-interval-ms: 30000
 
 logging:
   level:
     com.energy: INFO
-    org.springframework.security: WARN

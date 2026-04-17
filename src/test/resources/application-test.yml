@@ -10,7 +10,27 @@ spring:
       ddl-auto: create-drop
     database-platform: org.hibernate.dialect.H2Dialect
 
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: test-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.energy.dto"
+
 app:
   jwt:
-    secret: test-secret-key-for-testing-only-must-be-256-bits-long
+    secret: test-secret-key-for-testing-only-must-be-256-bits-long-enough
     expiration: 3600000
+  energy:
+    alert-threshold-kwh: 10.0
+    simulation-interval-ms: 999999
+  kafka:
+    topic:
+      energy-readings: energy-readings-test
+      alerts: energy-alerts-test

@@ -12,19 +12,17 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class EnergySimulatorScheduler {
 
-    private final EnergyService energyService;
-    private final UserRepository userRepository;
+    private final EnergyService   energyService;
+    private final UserRepository  userRepository;
 
     /**
-     * Simulates energy readings every 30 seconds for all users.
-     * In production this would be replaced by actual sensor data / Kafka consumers.
+     * Every 30 seconds: publish a simulated reading for every user via Kafka.
+     * Kafka Consumer handles persistence + alerts + WebSocket push.
      */
-    @Scheduled(fixedRate = 30000) // every 30 seconds
-    public void simulateEnergyReadings() {
-        log.info("⚡ Simulating energy readings...");
-        userRepository.findAll().forEach(user -> {
-            energyService.simulateReading(user.getId());
-            log.info("  → Generated reading for user: {}", user.getUsername());
-        });
+    @Scheduled(fixedRateString = "${app.energy.simulation-interval-ms}")
+    public void simulateReadings() {
+        var users = userRepository.findAll();
+        log.info("⚡ Scheduler: publishing {} simulated readings via Kafka", users.size());
+        users.forEach(u -> energyService.simulateAndPublish(u.getId()));
     }
 }

@@ -5,11 +5,10 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "energy_readings")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "energy_readings", indexes = {
+    @Index(name = "idx_user_timestamp", columnList = "user_id,timestamp")
+})
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class EnergyReading {
 
     @Id
@@ -26,12 +25,11 @@ public class EnergyReading {
     @Column(nullable = false)
     private LocalDateTime timestamp;
 
+    @Column(length = 100)
     private String location;
 
     @Enumerated(EnumType.STRING)
     private ReadingSource source;
 
-    public enum ReadingSource {
-        MANUAL, SIMULATED, SENSOR
-    }
+    public enum ReadingSource { MANUAL, SIMULATED, SENSOR }
 }

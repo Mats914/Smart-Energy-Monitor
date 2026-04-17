@@ -6,10 +6,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "alerts")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class Alert {
 
     @Id
@@ -24,14 +21,14 @@ public class Alert {
     private String message;
 
     @Enumerated(EnumType.STRING)
-    private AlertSeverity severity;
+    private Severity severity;
 
     private Double triggerValue;
     private Double threshold;
     private boolean acknowledged;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    public enum AlertSeverity {
-        LOW, MEDIUM, HIGH, CRITICAL
-    }
+    public enum Severity { LOW, MEDIUM, HIGH, CRITICAL }
 }

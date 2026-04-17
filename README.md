@@ -1,65 +1,90 @@
-## 📊 Dashboard Preview
+# ⚡ Smart Energy Monitoring System v2
 
-![Dashboard](assets/Dashboard.png)
-
-
-
-# ⚡ Smart Energy Monitoring System
-
-A production-ready backend system built with **Java 17**, **Spring Boot 3**, **PostgreSQL**, and **Docker** that simulates real-time energy consumption monitoring — similar to systems used at energy grid operators like **Svenska kraftnät**.
-
----
-
-## 🚀 Features
-
-| Feature | Description |
-|---|---|
-| 🔐 JWT Authentication | Secure register/login with role-based access (ADMIN / USER) |
-| ⚡ Energy Readings | CRUD operations for energy consumption data |
-| 📊 Statistics | Daily/monthly totals, averages, peak consumption |
-| 🔄 Real-time Simulation | Spring Scheduler generates sensor data every 30 seconds |
-| 🚨 Smart Alerts | Auto-generates alerts when consumption exceeds threshold |
-| 🐳 Docker Ready | Full containerization with Docker Compose |
-| 🧪 Tested | Unit tests (Mockito) + Integration tests (MockMvc) |
+A production-ready backend system built with **Java 17**, **Spring Boot 3**, **Apache Kafka**, **WebSocket**, **PostgreSQL**, and **React** — simulating real-time energy grid monitoring similar to systems at **Svenska kraftnät**.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-smart-energy-monitor/
-├── src/main/java/com/energy/
-│   ├── controller/         # REST API endpoints
-│   ├── service/            # Business logic
-│   ├── repository/         # JPA data access
-│   ├── model/              # JPA entities
-│   ├── dto/                # Request/Response DTOs
-│   ├── security/           # JWT filter & utilities
-│   ├── config/             # Security & CORS config
-│   └── scheduler/          # Real-time data simulation
-├── src/test/               # Unit & Integration tests
-├── docker-compose.yml
-├── Dockerfile
-└── pom.xml
+┌─────────────────────────────────────────────────────────┐
+│                    React Frontend                        │
+│          WebSocket (STOMP) ←──── Live updates           │
+└──────────────────────┬──────────────────────────────────┘
+                       │ HTTP / REST
+┌──────────────────────▼──────────────────────────────────┐
+│                 Spring Boot Backend                      │
+│                                                         │
+│  AuthController    EnergyController                     │
+│       │                  │                              │
+│  AuthService        EnergyService                       │
+│       │            ┌─────┴──────┐                       │
+│      JWT      KafkaProducer  Repository                 │
+│                    │                                    │
+└────────────────────┼────────────────────────────────────┘
+                     │ Kafka topic: energy-readings
+┌────────────────────▼────────────────────────────────────┐
+│              Kafka Consumer                             │
+│    Persist → Check threshold → WebSocket push          │
+└─────────────┬───────────────────────┬───────────────────┘
+              │                       │
+         PostgreSQL            WebSocket broker
+         (readings,            /topic/readings/{user}
+          alerts)              /topic/alerts/{user}
 ```
+
+---
+
+## 🚀 Features
+
+| Feature | Details |
+|---|---|
+| 🔐 JWT Auth | Register/Login with role-based access (ADMIN/USER) |
+| ⚡ Kafka Pipeline | Event-driven: Producer → Topic → Consumer |
+| 📡 WebSocket | Live dashboard updates via STOMP/SockJS |
+| 📊 Stats API | Daily/monthly totals, average, peak, active alerts |
+| 🔄 Scheduler | Auto-generates sensor data every 30 seconds |
+| 🚨 Smart Alerts | Threshold-based alerts with 4 severity levels |
+| 🧪 Full Test Suite | Unit (Mockito) + Integration (MockMvc + EmbeddedKafka) |
+| 🐳 Docker | One-command startup with Kafka + Zookeeper + PostgreSQL |
 
 ---
 
 ## 🔧 Tech Stack
 
-- **Java 17** + **Spring Boot 3.2**
-- **Spring Security** + **JWT (JJWT)**
-- **Spring Data JPA** + **PostgreSQL**
-- **Spring Scheduling** (real-time simulation)
-- **Docker** + **Docker Compose**
-- **Lombok** (clean boilerplate)
-- **JUnit 5** + **Mockito** + **MockMvc**
+**Backend**
+- Java 17 + Spring Boot 3.2
+- Spring Security + JWT (JJWT 0.11.5)
+- Spring Data JPA + PostgreSQL
+- Apache Kafka + Spring Kafka
+- Spring WebSocket (STOMP over SockJS)
+- Spring Scheduling
+- Lombok + Bean Validation
+
+**Frontend**
+- React 18 + Vite
+- Recharts (area chart)
+- @stomp/stompjs + sockjs-client
+- Axios with JWT interceptor
+- Lucide React icons
+
+**Testing**
+- JUnit 5 + Mockito
+- Spring MockMvc (integration)
+- EmbeddedKafka (Kafka tests)
+- Awaitility (async assertions)
+- H2 in-memory database
+
+**DevOps**
+- Docker + Docker Compose
+- Multi-stage Dockerfile
+- Zookeeper + Kafka + PostgreSQL
 
 ---
 
 ## 📦 Quick Start
 
-### Option 1: Docker (Recommended)
+### One command (Docker)
 
 ```bash
 git clone https://github.com/yourusername/smart-energy-monitor.git
@@ -67,22 +92,23 @@ cd smart-energy-monitor
 docker-compose up --build
 ```
 
-App runs at: `http://localhost:8080`
+Services started:
+- Backend API: `http://localhost:8080`
+- Kafka: `localhost:9092`
+- PostgreSQL: `localhost:5432`
 
-### Option 2: Local Setup
-
-**Requirements:** Java 17+, Maven 3.9+, PostgreSQL 15+
+### Frontend
 
 ```bash
-# 1. Create database
-createdb energy_db
+cd frontend
+npm install
+npm run dev     # http://localhost:5173
+```
 
-# 2. Set environment variables (or edit application.yml)
-export DB_USERNAME=postgres
-export DB_PASSWORD=your_password
+### Run tests
 
-# 3. Run
-mvn spring-boot:run
+```bash
+mvn test        # Uses H2 + EmbeddedKafka — no external services needed
 ```
 
 ---
@@ -93,114 +119,91 @@ mvn spring-boot:run
 
 ```http
 POST /api/auth/register
-Content-Type: application/json
+{ "username": "alice", "email": "alice@ex.com", "password": "secret123" }
 
-{
-  "username": "alice",
-  "email": "alice@example.com",
-  "password": "secret123"
-}
-```
-
-```http
 POST /api/auth/login
-Content-Type: application/json
-
-{
-  "username": "alice",
-  "password": "secret123"
-}
+{ "username": "alice", "password": "secret123" }
+→ { "token": "eyJ...", "username": "alice", "role": "USER" }
 ```
 
-**Response:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9...",
-  "username": "alice",
-  "role": "USER"
-}
-```
-
-### Energy Readings
+### Energy readings
 
 ```http
-# Add a reading
+# Submit (published via Kafka, processed async)
 POST /api/energy
 Authorization: Bearer <token>
+{ "consumptionKwh": 7.5, "location": "Main Meter" }
+→ 202 Accepted
 
-{
-  "consumptionKwh": 7.5,
-  "location": "Main Meter"
-}
-
-# Get all my readings
+# Get all readings
 GET /api/energy
-Authorization: Bearer <token>
+GET /api/energy/range?start=2024-01-01T00:00:00&end=2024-01-31T23:59:59
 
-# Get statistics
+# Statistics
 GET /api/energy/stats
-Authorization: Bearer <token>
+→ { totalToday, totalThisMonth, averageDaily, peakConsumption, totalReadings, activeAlerts }
 
-# Get alerts
+# Alerts
 GET /api/energy/alerts
-Authorization: Bearer <token>
-
-# Acknowledge an alert
 PUT /api/energy/alerts/{id}/acknowledge
-Authorization: Bearer <token>
+
+# Delete
+DELETE /api/energy/{id}
 ```
 
-### Stats Response Example
+### WebSocket (STOMP)
 
-```json
-{
-  "totalToday": 45.2,
-  "totalThisMonth": 312.8,
-  "averageDaily": 8.4,
-  "peakConsumption": 25.6,
-  "totalReadings": 248
-}
+Connect to `ws://localhost:8080/ws` then subscribe:
+
+```javascript
+client.subscribe(`/topic/readings/${username}`, msg => { /* live reading */ });
+client.subscribe(`/topic/alerts/${username}`,   msg => { /* new alert */   });
+client.subscribe(`/topic/stats/${username}`,    msg => { /* stats update */ });
 ```
 
 ---
 
-## 🔄 Real-time Simulation
+## 🔄 Data Flow
 
-Every **30 seconds**, the scheduler automatically generates energy readings (1–16 kWh) for all users, simulating sensor data. If consumption exceeds **10 kWh**, an alert is created with severity: `LOW → MEDIUM → HIGH → CRITICAL`.
-
-This mirrors real-world energy grid monitoring systems.
-
----
-
-## 🧪 Running Tests
-
-```bash
-mvn test
+```
+User submits reading
+       ↓
+EnergyController.submit()
+       ↓
+EnergyService.submitReading()
+       ↓
+KafkaProducer → "energy-readings" topic
+       ↓
+KafkaConsumer.consume()
+    ├── Save to PostgreSQL
+    ├── Push to WebSocket /topic/readings/{user}
+    └── If consumption > 10 kWh:
+            ├── Save Alert to PostgreSQL
+            └── Push to WebSocket /topic/alerts/{user}
 ```
 
-Tests use an **H2 in-memory database** — no PostgreSQL required for testing.
+---
+
+## 🧪 Test Coverage
+
+| Layer | Test type | Framework |
+|---|---|---|
+| Service | Unit | JUnit 5 + Mockito |
+| Controller | Integration | MockMvc |
+| Kafka | Integration | EmbeddedKafka + Awaitility |
+| Exception handler | Slice test | @WebMvcTest |
 
 ---
 
-## 🔒 Security
+## 📈 CV Description
 
-- Passwords hashed with **BCrypt**
-- Stateless sessions with **JWT**
-- Role-based endpoint protection (`ADMIN` / `USER`)
-- CORS configured for frontend at `localhost:3000` / `localhost:5173`
+```
+Smart Energy Monitoring System v2 — Java 17, Spring Boot, Kafka, WebSocket, React
 
----
-
-## 📈 Potential Enhancements
-
-- [ ] Apache Kafka for event-driven architecture
-- [ ] WebSocket for live dashboard updates
-- [ ] React frontend dashboard
-- [ ] Prometheus + Grafana metrics
-- [ ] Rate limiting with Spring Rate Limiter
-
----
-
-## 👨‍💻 Author
-
-Built as a portfolio project demonstrating real-world backend development skills relevant to energy sector systems (Svenska kraftnät, Vattenfall, E.ON).
+• Built event-driven backend using Apache Kafka (Producer/Consumer pattern)
+• Implemented real-time dashboard updates via WebSocket (STOMP/SockJS)
+• Designed REST API with JWT authentication and role-based authorization
+• Automated energy data simulation using Spring Scheduler
+• Wrote unit tests (Mockito) and integration tests (MockMvc + EmbeddedKafka)
+• Containerized full stack with Docker Compose (Kafka + Zookeeper + PostgreSQL)
+```
