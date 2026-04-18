@@ -1,209 +1,93 @@
 # ⚡ Smart Energy Monitoring System v2
 
-A production-ready backend system built with **Java 17**, **Spring Boot 3**, **Apache Kafka**, **WebSocket**, **PostgreSQL**, and **React** — simulating real-time energy grid monitoring similar to systems at **Svenska kraftnät**.
-
----
+A production-ready full-stack system simulating real-time energy grid monitoring.
+Built with **Java 17**, **Spring Boot 3**, **Apache Kafka**, **WebSocket**, **React**, and **Docker**.
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    React Frontend                        │
-│          WebSocket (STOMP) ←──── Live updates           │
-└──────────────────────┬──────────────────────────────────┘
-                       │ HTTP / REST
-┌──────────────────────▼──────────────────────────────────┐
-│                 Spring Boot Backend                      │
-│                                                         │
-│  AuthController    EnergyController                     │
-│       │                  │                              │
-│  AuthService        EnergyService                       │
-│       │            ┌─────┴──────┐                       │
-│      JWT      KafkaProducer  Repository                 │
-│                    │                                    │
-└────────────────────┼────────────────────────────────────┘
-                     │ Kafka topic: energy-readings
-┌────────────────────▼────────────────────────────────────┐
-│              Kafka Consumer                             │
-│    Persist → Check threshold → WebSocket push          │
-└─────────────┬───────────────────────┬───────────────────┘
-              │                       │
-         PostgreSQL            WebSocket broker
-         (readings,            /topic/readings/{user}
-          alerts)              /topic/alerts/{user}
+React Frontend  ──REST + WebSocket──►  Spring Boot 3
+                                           │
+                                    EnergyKafkaProducer
+                                           │
+                                    Apache Kafka (3 partitions)
+                                           │
+                                    EnergyKafkaConsumer
+                                     ├── Save to PostgreSQL
+                                     ├── WebSocket push → live UI
+                                     └── Alert if > 10 kWh
 ```
-
----
 
 ## 🚀 Features
 
-| Feature | Details |
+| | Feature |
 |---|---|
-| 🔐 JWT Auth | Register/Login with role-based access (ADMIN/USER) |
-| ⚡ Kafka Pipeline | Event-driven: Producer → Topic → Consumer |
-| 📡 WebSocket | Live dashboard updates via STOMP/SockJS |
-| 📊 Stats API | Daily/monthly totals, average, peak, active alerts |
-| 🔄 Scheduler | Auto-generates sensor data every 30 seconds |
-| 🚨 Smart Alerts | Threshold-based alerts with 4 severity levels |
-| 🧪 Full Test Suite | Unit (Mockito) + Integration (MockMvc + EmbeddedKafka) |
-| 🐳 Docker | One-command startup with Kafka + Zookeeper + PostgreSQL |
-
----
-
-## 🔧 Tech Stack
-
-**Backend**
-- Java 17 + Spring Boot 3.2
-- Spring Security + JWT (JJWT 0.11.5)
-- Spring Data JPA + PostgreSQL
-- Apache Kafka + Spring Kafka
-- Spring WebSocket (STOMP over SockJS)
-- Spring Scheduling
-- Lombok + Bean Validation
-
-**Frontend**
-- React 18 + Vite
-- Recharts (area chart)
-- @stomp/stompjs + sockjs-client
-- Axios with JWT interceptor
-- Lucide React icons
-
-**Testing**
-- JUnit 5 + Mockito
-- Spring MockMvc (integration)
-- EmbeddedKafka (Kafka tests)
-- Awaitility (async assertions)
-- H2 in-memory database
-
-**DevOps**
-- Docker + Docker Compose
-- Multi-stage Dockerfile
-- Zookeeper + Kafka + PostgreSQL
-
----
+| 🔐 | JWT auth · BCrypt · Role-based (ADMIN/USER) · Rate limiting 60 req/min |
+| ⚡ | CRUD readings · 30s simulation · Date range queries |
+| 🟡 | Kafka Producer/Consumer pipeline · 3 partitions · EmbeddedKafka tests |
+| 🟢 | WebSocket STOMP · Live readings · Live alerts · Live stats |
+| 🚨 | 4 severity levels · Auto-generation · Acknowledge flow |
+| 📋 | Async audit logging for every action with IP tracking |
+| 🛡️ | Admin: user management + paginated audit log |
+| 🐳 | Docker Compose: Kafka + Zookeeper + PostgreSQL |
+| 🧪 | Unit + Integration + EmbeddedKafka consumer tests |
 
 ## 📦 Quick Start
 
-### One command (Docker)
-
 ```bash
-git clone https://github.com/yourusername/smart-energy-monitor.git
-cd smart-energy-monitor
+# All-in-one Docker
 docker-compose up --build
+
+# Frontend (separate terminal)
+cd frontend && npm install && npm run dev
 ```
 
-Services started:
-- Backend API: `http://localhost:8080`
-- Kafka: `localhost:9092`
-- PostgreSQL: `localhost:5432`
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev     # http://localhost:5173
-```
-
-### Run tests
-
-```bash
-mvn test        # Uses H2 + EmbeddedKafka — no external services needed
-```
-
----
-
-## 🌐 API Reference
-
-### Authentication
+## 🌐 API
 
 ```http
-POST /api/auth/register
-{ "username": "alice", "email": "alice@ex.com", "password": "secret123" }
-
-POST /api/auth/login
-{ "username": "alice", "password": "secret123" }
-→ { "token": "eyJ...", "username": "alice", "role": "USER" }
+POST /api/auth/register        { username, email, password }
+POST /api/auth/login           { username, password }
+POST /api/energy               Submit reading via Kafka
+GET  /api/energy/stats         Dashboard statistics
+GET  /api/energy/alerts        My alerts
+PUT  /api/energy/alerts/{id}/acknowledge
+GET  /api/admin/audit          Full audit log (ADMIN only)
 ```
 
-### Energy readings
-
-```http
-# Submit (published via Kafka, processed async)
-POST /api/energy
-Authorization: Bearer <token>
-{ "consumptionKwh": 7.5, "location": "Main Meter" }
-→ 202 Accepted
-
-# Get all readings
-GET /api/energy
-GET /api/energy/range?start=2024-01-01T00:00:00&end=2024-01-31T23:59:59
-
-# Statistics
-GET /api/energy/stats
-→ { totalToday, totalThisMonth, averageDaily, peakConsumption, totalReadings, activeAlerts }
-
-# Alerts
-GET /api/energy/alerts
-PUT /api/energy/alerts/{id}/acknowledge
-
-# Delete
-DELETE /api/energy/{id}
-```
-
-### WebSocket (STOMP)
-
-Connect to `ws://localhost:8080/ws` then subscribe:
-
-```javascript
-client.subscribe(`/topic/readings/${username}`, msg => { /* live reading */ });
-client.subscribe(`/topic/alerts/${username}`,   msg => { /* new alert */   });
-client.subscribe(`/topic/stats/${username}`,    msg => { /* stats update */ });
-```
-
----
-
-## 🔄 Data Flow
+## 📁 Structure
 
 ```
-User submits reading
-       ↓
-EnergyController.submit()
-       ↓
-EnergyService.submitReading()
-       ↓
-KafkaProducer → "energy-readings" topic
-       ↓
-KafkaConsumer.consume()
-    ├── Save to PostgreSQL
-    ├── Push to WebSocket /topic/readings/{user}
-    └── If consumption > 10 kWh:
-            ├── Save Alert to PostgreSQL
-            └── Push to WebSocket /topic/alerts/{user}
+src/main/java/com/energy/
+├── config/       Security · Kafka · WebSocket · RateLimiting · AppProperties
+├── controller/   Auth · Energy · Admin
+├── dto/          All DTOs + Kafka event types
+├── exception/    GlobalHandler + ResourceNotFound/Conflict/Unauthorized
+├── kafka/        Producer · Consumer
+├── model/        User · EnergyReading · Alert · AuditLog
+├── repository/   5 JPA repos with custom JPQL
+├── scheduler/    30s simulation scheduler
+├── security/     JWT filter + utility
+├── service/      Auth · Energy · Audit · EnergyMapper
+└── websocket/    WebSocketNotificationService
+
+frontend/src/
+├── api/          axios + JWT interceptor
+├── components/   Sidebar · shared UI (StatCard, Panel, etc.)
+├── hooks/        useAuth · useEnergy · useWebSocket
+└── pages/        Dashboard · Readings · Alerts · Login · Register
 ```
 
----
-
-## 🧪 Test Coverage
-
-| Layer | Test type | Framework |
-|---|---|---|
-| Service | Unit | JUnit 5 + Mockito |
-| Controller | Integration | MockMvc |
-| Kafka | Integration | EmbeddedKafka + Awaitility |
-| Exception handler | Slice test | @WebMvcTest |
-
----
-
-## 📈 CV Description
+## 📝 CV Description
 
 ```
-Smart Energy Monitoring System v2 — Java 17, Spring Boot, Kafka, WebSocket, React
+Smart Energy Monitoring System | Java · Spring Boot · Kafka · WebSocket · React · Docker
 
-• Built event-driven backend using Apache Kafka (Producer/Consumer pattern)
-• Implemented real-time dashboard updates via WebSocket (STOMP/SockJS)
-• Designed REST API with JWT authentication and role-based authorization
-• Automated energy data simulation using Spring Scheduler
-• Wrote unit tests (Mockito) and integration tests (MockMvc + EmbeddedKafka)
-• Containerized full stack with Docker Compose (Kafka + Zookeeper + PostgreSQL)
+• Event-driven pipeline: Kafka Producer/Consumer (3 partitions) for real-time data ingestion
+• WebSocket (STOMP/SockJS) for live dashboard updates — no polling
+• JWT authentication with role-based access (ADMIN/USER)
+• Async audit logging (AuditService) for all user actions with IP tracking
+• Rate limiting filter (60 req/min/IP) and global exception handling
+• 30+ unit and integration tests including EmbeddedKafka consumer tests
+• Containerized with Docker Compose: Kafka + Zookeeper + PostgreSQL
+• React frontend: live area chart, readings table, alert management
 ```

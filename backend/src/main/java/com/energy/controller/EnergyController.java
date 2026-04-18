@@ -2,7 +2,9 @@ package com.energy.controller;
 
 import com.energy.dto.Dtos.*;
 import com.energy.model.Alert;
+import com.energy.service.AuditService;
 import com.energy.service.EnergyService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,12 +22,19 @@ import java.util.Map;
 public class EnergyController {
 
     private final EnergyService energyService;
+    private final AuditService  auditService;
 
     @PostMapping
     public ResponseEntity<Map<String, String>> submit(
             @AuthenticationPrincipal UserDetails user,
-            @Valid @RequestBody EnergyRequest request) {
+            @Valid @RequestBody EnergyRequest request,
+            HttpServletRequest httpRequest) {
+
         energyService.submitReading(user.getUsername(), request);
+        auditService.log(user.getUsername(), "SUBMIT_READING",
+            String.format("%.2f kWh @ %s", request.getConsumptionKwh(),
+                request.getLocation() != null ? request.getLocation() : "Main Meter"),
+            httpRequest.getRemoteAddr());
         return ResponseEntity.accepted().body(Map.of("message", "Reading submitted for processing"));
     }
 
@@ -52,8 +61,12 @@ public class EnergyController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, String>> delete(
             @AuthenticationPrincipal UserDetails user,
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            HttpServletRequest httpRequest) {
+
         energyService.deleteReading(user.getUsername(), id);
+        auditService.log(user.getUsername(), "DELETE_READING", "Reading id=" + id,
+            httpRequest.getRemoteAddr());
         return ResponseEntity.ok(Map.of("message", "Reading deleted"));
     }
 
@@ -66,8 +79,12 @@ public class EnergyController {
     @PutMapping("/alerts/{id}/acknowledge")
     public ResponseEntity<Map<String, String>> acknowledge(
             @AuthenticationPrincipal UserDetails user,
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            HttpServletRequest httpRequest) {
+
         energyService.acknowledgeAlert(user.getUsername(), id);
+        auditService.log(user.getUsername(), "ACKNOWLEDGE_ALERT", "Alert id=" + id,
+            httpRequest.getRemoteAddr());
         return ResponseEntity.ok(Map.of("message", "Alert acknowledged"));
     }
 }

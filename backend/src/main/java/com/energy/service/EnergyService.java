@@ -23,31 +23,23 @@ public class EnergyService {
     private final AlertRepository         alertRepository;
     private final EnergyKafkaProducer     kafkaProducer;
     private final WebSocketNotificationService wsNotifier;
+    private final EnergyMapper            mapper;
 
     // ── Public API ────────────────────────────────────────────
 
-    /**
-     * Publish a reading via Kafka.
-     * The Consumer handles persistence + alert creation + WebSocket push.
-     */
     public void submitReading(String username, EnergyRequest request) {
         User user = findUser(username);
-
-        EnergyEvent event = new EnergyEvent();
-        event.setUserId(user.getId());
-        event.setUsername(user.getUsername());
-        event.setConsumptionKwh(round(request.getConsumptionKwh()));
-        event.setLocation(request.getLocation() != null ? request.getLocation() : "Main Meter");
-        event.setSource(request.getSource() != null ? request.getSource().name() : "MANUAL");
-        event.setTimestamp(LocalDateTime.now());
-
+        EnergyEvent event = mapper.toEvent(user,
+            request.getConsumptionKwh(),
+            request.getLocation(),
+            request.getSource() != null ? request.getSource().name() : null);
         kafkaProducer.publishReading(event);
     }
 
     public List<EnergyResponse> getReadings(String username) {
         User user = findUser(username);
         return readingRepository.findByUserOrderByTimestampDesc(user)
-            .stream().map(this::toResponse).collect(Collectors.toList());
+            .stream().map(mapper::toResponse).collect(Collectors.toList());
     }
 
     public List<EnergyResponse> getReadingsByPeriod(String username,
@@ -56,7 +48,7 @@ public class EnergyService {
         User user = findUser(username);
         return readingRepository
             .findByUserAndTimestampBetweenOrderByTimestampDesc(user, start, end)
-            .stream().map(this::toResponse).collect(Collectors.toList());
+            .stream().map(mapper::toResponse).collect(Collectors.toList());
     }
 
     public StatsResponse getStats(String username) {
@@ -97,26 +89,16 @@ public class EnergyService {
             .orElseThrow(() -> new ResourceNotFoundException("Alert not found: " + alertId));
         alert.setAcknowledged(true);
         alertRepository.save(alert);
-
-        // Push updated stats after acknowledging
         wsNotifier.pushStats(username, getStats(username));
     }
 
-    // ── Used by Scheduler (direct save, no Kafka round-trip) ──
+    // ── Scheduler ─────────────────────────────────────────────
 
     @Transactional
     public void simulateAndPublish(Long userId) {
         userRepository.findById(userId).ifPresent(user -> {
             double value = round(1.0 + Math.random() * 20.0);
-
-            EnergyEvent event = new EnergyEvent();
-            event.setUserId(user.getId());
-            event.setUsername(user.getUsername());
-            event.setConsumptionKwh(value);
-            event.setLocation("Smart Meter");
-            event.setSource("SIMULATED");
-            event.setTimestamp(LocalDateTime.now());
-
+            EnergyEvent event = mapper.toEvent(user, value, "Smart Meter", "SIMULATED");
             kafkaProducer.publishReading(event);
         });
     }
@@ -126,17 +108,6 @@ public class EnergyService {
     private User findUser(String username) {
         return userRepository.findByUsername(username)
             .orElseThrow(() -> new ResourceNotFoundException("User not found: " + username));
-    }
-
-    private EnergyResponse toResponse(EnergyReading r) {
-        EnergyResponse res = new EnergyResponse();
-        res.setId(r.getId());
-        res.setConsumptionKwh(r.getConsumptionKwh());
-        res.setTimestamp(r.getTimestamp());
-        res.setLocation(r.getLocation());
-        res.setSource(r.getSource().name());
-        res.setUsername(r.getUser().getUsername());
-        return res;
     }
 
     private double round(double v) {
